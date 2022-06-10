@@ -180,6 +180,65 @@ key = key [ -rm, ]
 
 ```
 
+```{r}
+
+
+key$tube = key$RNAseq.id 
+data = data[ , key$RNAseq.id]
+all.equal ( colnames ( data), key$RNAseq.id ) # sanity check
+ 
+ 
+ 
+## inititiate edgeR 
+y.match <- DGEList( data)
+
+## remove low counts since this could interfere with some of the statistical approximations
+#  here half the total sample size must have > 2 raw to be included 
+# adjust as needed 
+
+threshold <- ceiling(  ncol ( data )/2  )
+mincpm = 1
+keep <- rowSums(  cpm ( data, log=F ) >  mincpm ) >= threshold
+
+
+# do we need to force a gene? 
+fgene = "RUNX2"
+keep [fgene]
+keep [fgene] = TRUE 
+
+# before 
+dim(y.match)
+y.match  <- y.match [keep, ]
+# after 
+dim (y.match)    
+
+## normalisation using trimmed mean of M-values (TMM) (Robinson and Oshlack 2010)
+## in additional to library scaling this will ensure that the expression distributions of each sample are similar
+## across the experiment
+y.match <- calcNormFactors( y.match, method = "TMM" )
+
+# convert this for further downstream but log + 1 
+cpm = as.data.frame(cpm(y.match, prior.count=3, log=T))
+cpm.log2p = log2  ( as.data.frame(cpm(y.match, prior.count=3, log=F)) + 1 )
+
+all.equal(names(cpm), key$tube ) 
+
+
+```
+
+
+```{r}
+# set up model for limma-voom 
+
+group = key$sgRNA 
+
+design <- model.matrix(~0  +  group )
+colnames ( design) = gsub ( 'group',"",colnames(design))
+
+voom <- voom(y.match, plot = T, design = design)  
+voom.plot <- recordPlot()
+
+```
 
 
 
