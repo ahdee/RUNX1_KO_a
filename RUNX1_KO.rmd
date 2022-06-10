@@ -52,7 +52,10 @@ Run at "`r format(Sys.time())`"
     + Both cell lines are expressing Cas9 constitutively. 						
     + The experiment was done using the sgRNA and RNAiMAX lipofectamine reagent. 						
   						
-
+  * While running QC a strong batch was detected between cell lines.  Thus cpm was batch corrected with Combat and cell line was added covariate in the limma-model
+  
+  
+  
 ```{r setup, include=FALSE, echo=FALSE, message=FALSE, warning=FALSE, cache=F}
 
 knitr::opts_chunk$set(include=F, echo=FALSE, message=FALSE, warning=FALSE, fig.show="asis", fig.keep="all",tidy.opts=list(width.cutoff=100),tidy=TRUE)
@@ -230,10 +233,11 @@ all.equal(names(cpm), key$tube )
 
 ```{r}
 # set up model for limma-voom 
+# retrospectively this experiment needs some batch correction 
 
 group = key$sgRNA 
-
-design <- model.matrix(~0  +  group )
+cell = key$Cell.line
+design <- model.matrix(~0  +  group + cell  )
 colnames ( design) = gsub ( 'group',"",colnames(design))
 
 voom <- voom(y.match, plot = T, design = design)  
@@ -241,6 +245,19 @@ voom.plot <- recordPlot()
 
 ```
 
+```{r}
+# this experiment needs batch correction 
+
+# after batch correction 
+modcombat <- model.matrix (~1, data=key)
+cpm_mod = ComBat(dat=as.matrix(cpm ), batch=key$Cell.line, mod=modcombat, par.prior=TRUE, prior.plots=FALSE)
+
+cpm_mod = cpm_mod [ , key$RNAseq.id]
+cpm_mod = data.frame ( cpm_mod )
+
+
+
+```
 
 ### Density plot of log2 normalize counts
 
@@ -248,12 +265,14 @@ voom.plot <- recordPlot()
 
 ```{r, include=TRUE, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height=6}
 
-density1 = melt ( cpm  )
+density1 = melt ( cpm_mod  )
 colnames(density1) = c("sample", "value")
 density1 = ggplot(density1, aes(value, fill=sample, colours=sample)) + geom_density(alpha=0.1) + 
-      theme_bw()  + scale_color_manual( values= getPalette(12))
+      theme_bw()  + scale_color_manual( values= getPalette(12)) + ggtitle ( "after correction")
 
 density1
+
+
 
 bx.result = box.outlier ( cpm, key, group.id= "sgRNA", tname="tube" ) 
 bx.result2 = box.outlier ( cpm, key, group.id= "Cell.line", tname="tube" ) 
@@ -271,11 +290,7 @@ bx.result2 = box.outlier ( cpm, key, group.id= "Cell.line", tname="tube" )
 ### Before correction 
 
 ```{r}
-# after batch correction 
-modcombat <- model.matrix (~1, data=key)
-cpm_mod = ComBat(dat=as.matrix(cpm ), batch=key$Cell.line, mod=modcombat, par.prior=TRUE, prior.plots=FALSE)
 
-cpm_mod = cpm_mod [ , key$RNAseq.id]
 bx.result3 = box.outlier ( cpm_mod, key, group.id= "Cell.line", tname="tube" ) 
 
 
@@ -294,7 +309,16 @@ bx.result3 = bx.result3 + ylim(.8,1)
 bx.result2 + bx.result3
 ```
 
+## mean variance 
 
+* Mean variance trend plot for VOOM stabilization
+* https://f1000research.com/articles/5-1408
+* What we want here is to show a decreasing trend between the means and variances 
+
+
+```{r, message=FALSE, warning=FALSE,fig=TRUE,fig.width=8, fig.height=5, echo=FALSE, include=TRUE}
+voom.plot
+```
 
 
 
