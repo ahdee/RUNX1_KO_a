@@ -328,7 +328,8 @@ voom.plot
 
 ### Single genes {.tabset}
 
-  * This is important to determine certain gene expectation.  
+  * This is important to ascertain expected gene expectation.
+  * pv is determine by wilcox test
 
 ```{r, message=FALSE, warning=FALSE,fig=TRUE,fig.width=5, fig.height=8, echo=FALSE, include=TRUE, results='asis'}
 
@@ -362,6 +363,7 @@ g1 = ggplot(temp, aes(x= group , y=value )) +
                      geom = "crossbar", width = .5) + ggtitle ( gk )
 
 
+g1 = ggpval::add_pval(g1, pairs = list(c(1, 2)), test='wilcox.test')
 
 dis = paste0 ( "#### ", gk, "<br> \n")
 cat(dis ) 
