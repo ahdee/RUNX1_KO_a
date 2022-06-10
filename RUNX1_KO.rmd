@@ -40,10 +40,19 @@ border-top: 1px solid #84a8e0;
 version: 1.0 <br />
 Run at "`r format(Sys.time())`"
 
-# Overview/Method:
+# Data {.tabset}
 
+## Overview/Method:
 
-    
+  * RUNX2 was identified as a differential TF for ATAC-seq cluster 1. See ATAC-seq exp 2a. 
+  * We are interested on the downstream regulation cascade of RUNX2. 
+  * The knock-outs (KO) were generated using a single RNA guide (sgRNA) from Synthego.
+    + The sgRNA targeting RUNX2 is CCGUAGAUCCGAGCACCAGC.						
+    + And the sgNEG is a non-targeting guide.						
+    + Both cell lines are expressing Cas9 constitutively. 						
+    + The experiment was done using the sgRNA and RNAiMAX lipofectamine reagent. 						
+  						
+
 ```{r setup, include=FALSE, echo=FALSE, message=FALSE, warning=FALSE, cache=F}
 
 knitr::opts_chunk$set(include=F, echo=FALSE, message=FALSE, warning=FALSE, fig.show="asis", fig.keep="all",tidy.opts=list(width.cutoff=100),tidy=TRUE)
@@ -128,3 +137,52 @@ dir.create(out.dir)
 
 
 ```
+
+
+```{r}
+# get key. 
+
+key1 =  read.xlsx( "https://www.dropbox.com/s/n13y22wslxp7kwo/EF_RNAseq_Samples_StanEdit.xlsx?dl=1")
+key = key1 [ order ( key1$sgRNA), ]
+
+# get starcount 
+data =  read.table("../SUMMARY/counts/raw.tsv")
+# find samples that were removed 
+rm = setdiff ( key$RNAseq.id, colnames ( data ))
+rm = which ( key$RNAseq.id %in% rm )
+
+```
+
+
+
+## QC & Key {.tabset}
+
+
+### Table Key
+
+```{r, message=FALSE, warning=FALSE,fig=TRUE,fig.width=16, fig.height=10, echo=FALSE, include=TRUE}
+
+
+kable( key  , format = "html" , row.names = F, caption = "Main Key" ) %>% kable_classic(full_width = F, position = "center")  %>% 
+  row_spec(row= rm
+           , bold = F 
+           , color = "black"
+           # , background = "#c6c9cf"
+           ,strikeout = TRUE
+           ) %>%
+  footnote(
+           symbol  = c("strikeout indicates that sample was not sequenced. Please see Seq notes for more details"),
+         
+           )
+
+key = key [ -rm, ]
+
+
+```
+
+
+
+
+
+
+
