@@ -1,5 +1,5 @@
 ---
-title: "RUNX1 KO"
+title: "RUNX2 KO"
 author: "Alex"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
@@ -52,7 +52,7 @@ Run at "`r format(Sys.time())`"
     + Both cell lines are expressing Cas9 constitutively. 						
     + The experiment was done using the sgRNA and RNAiMAX lipofectamine reagent. 						
   						
-  * While running QC a strong batch was detected between cell lines.  Thus cpm was batch corrected with Combat and cell line was added covariate in the limma-model
+  * While running QC a strong batch was detected between cell lines.  Thus cpm was batch corrected with limma removeBatchEffect and cell line was added as a covariate in the limma-model
   
   
   
@@ -249,12 +249,18 @@ voom.plot <- recordPlot()
 # this experiment needs batch correction 
 
 # after batch correction 
-modcombat <- model.matrix (~1, data=key)
-cpm_mod = ComBat(dat=as.matrix(cpm ), batch=key$Cell.line, mod=modcombat, par.prior=TRUE, prior.plots=FALSE)
+#modcombat <- model.matrix (~1, data=key)
+#cpm_mod = ComBat(dat=as.matrix(cpm ), batch=key$Cell.line, mod=modcombat, par.prior=TRUE, prior.plots=FALSE)
 
-cpm_mod = cpm_mod [ , key$RNAseq.id]
-cpm_mod = data.frame ( cpm_mod )
+#cpm_mod = cpm_mod [ , key$RNAseq.id]
+#cpm_mod = data.frame ( cpm_mod )
 
+cpm_mod2 <- removeBatchEffect(cpm, key$Cell.line)
+cpm_mod2 <- data.frame ( cpm_mod2 )
+
+# limma's batch correction is better 
+
+cpm_mod = cpm_mod2 [ , key$RNAseq.id]
 
 
 ```
@@ -287,7 +293,6 @@ bx.result2 = box.outlier ( cpm, key, group.id= "Cell.line", tname="tube" )
   + color coded by group
   + the expected correlation between samples, irrespective of group should be ~ r= 0.9
 
-### Before correction 
 
 ```{r}
 
@@ -309,7 +314,7 @@ bx.result3 = bx.result3 + ylim(.8,1)
 bx.result2 + bx.result3
 ```
 
-## mean variance 
+### mean variance 
 
 * Mean variance trend plot for VOOM stabilization
 * https://f1000research.com/articles/5-1408
@@ -319,6 +324,174 @@ bx.result2 + bx.result3
 ```{r, message=FALSE, warning=FALSE,fig=TRUE,fig.width=8, fig.height=5, echo=FALSE, include=TRUE}
 voom.plot
 ```
+
+
+### Single genes {.tabset}
+
+  * This is important to determine certain gene expectation.  
+
+```{r, message=FALSE, warning=FALSE,fig=TRUE,fig.width=5, fig.height=8, echo=FALSE, include=TRUE, results='asis'}
+
+key$group = key$sgRNA
+
+for ( gk in unique ( c ( "GAPDH", "ACTB", "RUNX2" ) ) ){
+  
+ temp <- melt (as.matrix ( cpm_mod [row.names( cpm_mod ) %in% gk,]  )  )
+    colnames ( temp ) = c("gene","tube","value")
+ temp = merge ( temp, key, by="tube") 
+    
+colsingl <- getPalette ( length (  unique ( temp$sgRNA  )  )) 
+temp$group = factor ( temp$group, levels=unique (sort ( temp$group) ) )
+    
+g1 = ggplot(temp, aes(x= group , y=value )) +
+        geom_violin()+ 
+        geom_jitter(shape=19, position=position_jitter(0.07), aes( colour=sgRNA) , size = 5, alpha= .5) +
+        theme_bw() +
+        ylab( "log2 ( cpm + 1 )") +
+        xlab("")  +
+        theme(legend.position="bottom", legend.title=element_blank(), legend.key = element_blank(),
+              #axis.text.x = element_blank(),
+              #axis.text.y = element_blank(), # comment this out to display cancer.subtype
+              axis.text.y = element_text(size=12),
+              axis.text.x = element_text(size=15, angle = 40,  hjust=1 ),
+              axis.title.x = element_text(size=22),
+              axis.title.y     = element_text(size=22), 
+              legend.text      =element_text(size=12)
+        ) + scale_color_manual(values = unique (colsingl )) +
+        stat_summary(fun.y = mean, fun.ymin = mean, fun.ymax = mean,
+                     geom = "crossbar", width = .5) + ggtitle ( gk )
+
+
+
+dis = paste0 ( "#### ", gk, "<br> \n")
+cat(dis ) 
+print ( g1 )
+
+cat('\n\n')
+
+  
+  
+  # end gene 
+  # 
+  cat ( "\n")
+
+
+
+}
+
+
+```
+
+```{r}
+
+# run cluster analysis to see how well the experiment looks from a global perspective. 
+
+this.color = c( RUNX2="#459fcc", sgNeg="#b58953") 
+
+distuse = "euclidean"
+linkuse = "ward.D2"
+
+key_c = key
+m.cpm = cpm_mod2  [ , key_c$tube] 
+
+
+all.equal(names(m.cpm), key_c$tube ) 
+
+sd <- apply (m.cpm, 1,  function(x) cov(x)  )
+
+p = c(.1,.2,.3,.4,.5,.6, .7, .75, .8, .9,.95)
+q <- quantile (as.numeric ( sd ), probs = p , na.rm =T )
+
+# correct for variance
+get.p = "95%"
+get.p = as.numeric ( q[get.p] )
+sd2 = sd[ !is.na(sd) & sd >get.p  ]
+
+# from here on out cm.cpm2 is the main one since cm.cpm changes 
+m.cpm = m.cpm [ row.names ( m.cpm) %in% names( sd2), ]
+m.cpm = setcolorder(m.cpm,  as.character( key_c$tube )  )
+
+
+
+
+dend2 = makehr ( df.this = t( m.cpm ), km=2, dist.this = distuse, aggreg=linkuse, meta1 = key_c$group  )    
+
+dend2$dend = dend2$dend %>% set("labels_cex", 1) %>% set("labels_col", "black")
+
+# make colors 
+set.seed(123)
+colqc <- getPalette ( 50 ) 
+
+cond.color =   c("#fcc203", "#4dd413" )
+names ( cond.color ) = unique ( key_c$group) 
+
+
+
+
+
+par(mar=c(5,5,2,10))
+# c(bottom, left, top, right)
+plot ( dend2$dend, horiz=T) 
+colored_bars(colors =cond.color[ key_c$group], dend =  dend2$dend, sort_by_labels_order = TRUE, horiz = T, text_shift=0, x_scale=0)
+
+legend("topleft", legend=c ( names ( cond.color ) ) 
+       ,lwd=8,  box.col = "white", bg = "white", border.col = "white",
+       col=c ( as.character(cond.color) ) , lty=1, cex=1)
+                  
+hc.all = recordPlot()
+ 
+ pca.biop <- PCA( t( m.cpm ), graph = FALSE)
+
+p <- fviz_pca_ind(pca.biop, label="none", addEllipses=TRUE, ellipse.level=0.95,  axes = c(1, 2),  alpha=0  )
+p2 <- p +geom_point( aes(colour=  key_c$sgRNA , shape=factor ( key_c$Cell.line ) ), size=9.0 , alpha=.4 )
+
+
+
+pca.biop = p2  + scale_colour_manual(values = this.color, name  ="group" ) +
+ scale_shape_discrete ( name="Cell Line") + ggtitle("Unsupervised") 
+
+
+
+```
+
+
+### Unsupervised PCA
+
+* top 95 percentile most variant genes ( determine with coefficient of variation  )
+
+```{r, message=FALSE, warning=FALSE,fig=TRUE,fig.width=10, fig.height=7, echo=FALSE, include=TRUE}
+pca.biop
+```
+
+
+```{r}
+gsva = 0 
+
+if ( gsva == 1 ){
+# run GSVA 
+gsv_pathways = readRDS( paste0( resource, "/gsea/limma/go_path_fgsea_genename.rds"))
+library ( GSVA )
+gsva.plate <- GSVA::gsva(as.matrix ( cpm_mod ), gsv_pathways, min.sz=30, max.sz=500000
+                   , mx.diff=TRUE, verbose=FALSE
+                   , parallel.sz=1
+                   ,  kcdf="Gaussian"
+                   , method = "gsva")
+saveRDS( gsva.plate , "GSVA_wholeset")
+
+
+
+}else {
+  gsva.plate = readRDS( "GSVA_wholeset" )
+
+}
+
+
+#gsva.platem = removeBatchEffect(gsva.plate, batch=key$Cell_line ) 
+
+ 
+
+```
+
 
 
 
