@@ -72,6 +72,7 @@ library ( factoextra)
 library ( FactoMineR)
 library ( ggplot2)
 library ( ggplotify) 
+library ( patchwork)
 library ( limma)
 library ( edgeR)
 library(knitr)        
@@ -218,8 +219,8 @@ dim (y.match)
 y.match <- calcNormFactors( y.match, method = "TMM" )
 
 # convert this for further downstream but log + 1 
-cpm = as.data.frame(cpm(y.match, prior.count=3, log=T))
-cpm.log2p = log2  ( as.data.frame(cpm(y.match, prior.count=3, log=F)) + 1 )
+
+cpm = log2  ( as.data.frame(cpm(y.match, prior.count=3, log=F)) + 1 )
 
 all.equal(names(cpm), key$tube ) 
 
@@ -239,6 +240,68 @@ voom <- voom(y.match, plot = T, design = design)
 voom.plot <- recordPlot()
 
 ```
+
+
+### Density plot of log2 normalize counts
+
+* To assess normalization we plot the densities of counts for the each samples. A succesful normalization will lead to overlapping densities.
+
+```{r, include=TRUE, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height=6}
+
+density1 = melt ( cpm  )
+colnames(density1) = c("sample", "value")
+density1 = ggplot(density1, aes(value, fill=sample, colours=sample)) + geom_density(alpha=0.1) + 
+      theme_bw()  + scale_color_manual( values= getPalette(12))
+
+density1
+
+bx.result = box.outlier ( cpm, key, group.id= "sgRNA", tname="tube" ) 
+bx.result2 = box.outlier ( cpm, key, group.id= "Cell.line", tname="tube" ) 
+
+```
+
+### Correlation Matrix 
+
+* We can cleary see here that the thre is a strong batch effect with the cell line. 
+* thus a batch correction must be implemented. 
+* cor-cor plot: x-axis by sample. y-axis is the coeffecient correlation between the sample vs other.  
+  + color coded by group
+  + the expected correlation between samples, irrespective of group should be ~ r= 0.9
+
+### Before correction 
+
+```{r}
+# after batch correction 
+modcombat <- model.matrix (~1, data=key)
+cpm_mod = ComBat(dat=as.matrix(cpm ), batch=key$Cell.line, mod=modcombat, par.prior=TRUE, prior.plots=FALSE)
+
+cpm_mod = cpm_mod [ , key$RNAseq.id]
+bx.result3 = box.outlier ( cpm_mod, key, group.id= "Cell.line", tname="tube" ) 
+
+
+bx.result2 = bx.result2$g1 + ggtitle ( "Before correction")
+bx.result3 = bx.result3$g1 + ggtitle ( "After correction")
+
+# bring the results range back in 
+
+bx.result3 = bx.result3 + ylim(.8,1) 
+
+
+```
+
+
+```{r, include=TRUE, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height=6}
+bx.result2 + bx.result3
+```
+
+
+
+
+
+
+
+
+
 
 
 
