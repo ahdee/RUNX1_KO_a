@@ -1,0 +1,130 @@
+---
+title: "RUNX1 KO"
+author: "Alex"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+html_document:
+toc: TRUE
+toc_float: FALSE
+editor_options: 
+  chunk_output_type: console
+chunk_output_type: console
+---
+
+
+<style type="text/css">
+.main-container {
+max-width: 2500px;
+margin-left: 5px;
+margin-right: auto;
+}
+.toc-content {
+max-width: 2500px;
+margin-left: 50px;
+margin-right: auto;
+}
+
+div {
+
+margin-left: 5px;
+}
+
+
+hr.new1 {
+border-top: 1px solid #84a8e0;
+}
+
+
+</style>
+
+version: 1.0 <br />
+Run at "`r format(Sys.time())`"
+
+# Overview/Method:
+
+
+    
+```{r setup, include=FALSE, echo=FALSE, message=FALSE, warning=FALSE, cache=F}
+
+knitr::opts_chunk$set(include=F, echo=FALSE, message=FALSE, warning=FALSE, fig.show="asis", fig.keep="all",tidy.opts=list(width.cutoff=100),tidy=TRUE)
+options(knitr.table.format = "latex")
+options(width = 1600)
+
+
+### global options 
+options(scipen=999)
+### standard libraries
+library("RColorBrewer")
+library(dplyr)
+library(openxlsx)
+library ( parallelDist)
+library(forcats)
+library ( factoextra)
+library ( FactoMineR)
+library ( ggplot2)
+library ( ggplotify) 
+library ( limma)
+library ( edgeR)
+library(knitr)        
+library ( kableExtra)    
+library(tidyr)
+library ( data.table )
+library (DT)
+library ( ComplexHeatmap)
+getPalette = colorRampPalette(brewer.pal(9, "Set1")) # expand color pallete
+# keeping things consistent
+ss = 123
+set.seed(ss)
+
+
+
+## read in resources 
+## 
+main.data = "/data/"
+resource = "/ehome/resource/"
+resource.ext = "/ehome/"
+
+
+source ( "/ehome/scripts/config.ext/ext_June.2020.R" )
+
+# for info on genes
+genecard  <- readRDS(  paste0( resource, "annotation/genecard.rds" )  )
+genecard = genecard[ , c("InputTerm","EntrezGene")]
+genecard = genecard[!is.na(genecard$EntrezGene), ]
+colnames(genecard) = c("GENE","description")
+
+## pathways 
+pathways = readRDS( paste0( resource, "/gsea/limma/go_path.rds"))
+# change column to make it work with profiler 
+pathway.p = pathways
+colnames ( pathway.p)[1] = c("geneID")
+
+annt =  readRDS( paste0( resource, "/gsea/limma/go_path_withWeneName.rds"))
+annt$GeneID = NULL 
+
+colnames ( annt ) = c ( "gene"  , "term")
+annt = annt [ ,  c ( "term"  , "gene") ]
+pathgsea =  readRDS( paste0( resource, "/gsea/limma/go_path_fgsea_genename.rds"))
+
+
+# loading up cancer genes
+cosmic = read.csv("https://www.dropbox.com/s/ceo0ol2h9vt01c3/cosmic-cancer_gene_census.v85.csv?dl=1")
+tsg = cosmic[ grepl("TSG", cosmic$Role.in.Cancer, ignore.case = T), ]
+oncogene = cosmic[ grepl("oncog", cosmic$Role.in.Cancer, ignore.case = T), ]
+cosmic$Gene.Symbol = as.character(cosmic$Gene.Symbol)
+
+# load drug database 
+drug.db = "https://www.dropbox.com/s/1k60wzvstbp0m7w/7.8.2020.xlsx?dl=1"
+drug.db <- read.xlsx(drug.db , colNames = TRUE)
+drug.db = drug.db[ grepl ( "antagonist|blocker|antibody|antisense|inhibit", drug.db$interaction_types), ]
+
+
+
+# main excel output for later 
+wb <- createWorkbook()
+
+out.dir = "./results.out/"
+dir.create(out.dir)
+
+
+```
